@@ -82,3 +82,21 @@ powershell -ExecutionPolicy Bypass -File .\scripts\weekly-summary.ps1 -WeekStart
 
 Output report path:
 - `output/reports/weekly-summary-YYYY-MM-DD.md`
+
+## GitHub Actions
+
+This repo includes two GitHub workflows:
+
+- `.github/workflows/smoke-tests.yml`
+  - Runs on pushes to `main` and pull requests.
+  - Executes `scripts/test.ps1`.
+
+- `.github/workflows/weekly-summary.yml`
+  - Runs every Monday (`14:10 UTC`) and on manual trigger.
+  - Executes `scripts/weekly-summary.ps1` and uploads report artifacts from `output/reports/*.md`.
+
+Manual run from GitHub UI:
+1. Open `Actions` tab.
+2. Select `Weekly Summary`.
+3. Click `Run workflow`.
+4. Optional: set `week_start_date` in `yyyy-MM-dd`.

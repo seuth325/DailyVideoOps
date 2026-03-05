@@ -2,7 +2,10 @@
   [string]$Root,
   [string]$WeekStartDate,
   [switch]$Deduplicate = $true,
-  [switch]$WriteReport = $true
+  [switch]$WriteReport = $true,
+  [string]$ReportDir = 'output/reports',
+  [switch]$AllowEmptyAnalytics,
+  [switch]$AllowNoCurrentWeek
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,6 +20,12 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
   }
 }
 
+if ([IO.Path]::IsPathRooted($ReportDir)) {
+  $ResolvedReportDir = $ReportDir
+} else {
+  $ResolvedReportDir = Join-Path $Root $ReportDir
+}
+
 function Get-Monday {
   param([datetime]$Date)
   $offset = (([int]$Date.DayOfWeek + 6) % 7)
@@ -28,13 +37,67 @@ function To-Number {
   try { return [double]$Value } catch { return $Default }
 }
 
+function Write-NoDataReport {
+  param(
+    [datetime]$WeekStart,
+    [string]$Reason
+  )
+
+  $weekEnd = $WeekStart.AddDays(6)
+  $lines = @(
+    "# Weekly Summary ($($WeekStart.ToString('yyyy-MM-dd')) to $($weekEnd.ToString('yyyy-MM-dd')))"
+    ''
+    '## KPI Snapshot'
+    '- Posts: 0'
+    '- Views: 0 (WoW: n/a)'
+    '- Avg retention proxy: n/a (WoW: n/a)'
+    '- Follows: 0 (WoW: n/a)'
+    ''
+    '## Recommendation (Keep 2 / Replace 1)'
+    '- Keep: n/a'
+    '- Replace/Improve first: n/a'
+    '- Action: log daily metrics this week, then rerun weekly summary.'
+    ''
+    '## Notes'
+    "- Reason: $Reason"
+  )
+
+  if ($WriteReport) {
+    New-Item -ItemType Directory -Path $ResolvedReportDir -Force | Out-Null
+    $path = Join-Path $ResolvedReportDir ("weekly-summary-{0}.md" -f $WeekStart.ToString('yyyy-MM-dd'))
+    $lines -join "`r`n" | Set-Content -Path $path -Encoding UTF8
+    Write-Output "Report written: $path"
+  }
+
+  Write-Output ("Week: {0} to {1}" -f $WeekStart.ToString('yyyy-MM-dd'), $weekEnd.ToString('yyyy-MM-dd'))
+  Write-Output 'No analytics data available for this report window.'
+}
+
+if ([string]::IsNullOrWhiteSpace($WeekStartDate)) {
+  $requestedWeekStart = Get-Monday -Date (Get-Date)
+} else {
+  try {
+    $requestedWeekStart = Get-Monday -Date ([datetime]::ParseExact($WeekStartDate, 'yyyy-MM-dd', $null))
+  } catch {
+    throw 'WeekStartDate must be in yyyy-MM-dd format.'
+  }
+}
+
 $csvPath = Join-Path $Root 'data/analytics-log.csv'
 if (-not (Test-Path $csvPath)) {
+  if ($AllowEmptyAnalytics) {
+    Write-NoDataReport -WeekStart $requestedWeekStart -Reason "Missing analytics log at $csvPath"
+    return
+  }
   throw "Missing analytics log: $csvPath"
 }
 
 $raw = Import-Csv $csvPath
 if (-not $raw -or $raw.Count -eq 0) {
+  if ($AllowEmptyAnalytics) {
+    Write-NoDataReport -WeekStart $requestedWeekStart -Reason 'Analytics log is empty.'
+    return
+  }
   throw 'Analytics log is empty. Add daily metrics first.'
 }
 
@@ -54,6 +117,10 @@ $parsed = foreach ($r in $raw) {
 }
 
 if (-not $parsed -or $parsed.Count -eq 0) {
+  if ($AllowEmptyAnalytics) {
+    Write-NoDataReport -WeekStart $requestedWeekStart -Reason 'No valid analytics rows after parsing.'
+    return
+  }
   throw 'No valid analytics rows found after parsing.'
 }
 
@@ -68,11 +135,7 @@ if ([string]::IsNullOrWhiteSpace($WeekStartDate)) {
   $latestDate = ($parsed | Sort-Object date | Select-Object -Last 1).date
   $weekStart = Get-Monday -Date $latestDate
 } else {
-  try {
-    $weekStart = Get-Monday -Date ([datetime]::ParseExact($WeekStartDate, 'yyyy-MM-dd', $null))
-  } catch {
-    throw 'WeekStartDate must be in yyyy-MM-dd format.'
-  }
+  $weekStart = $requestedWeekStart
 }
 
 $weekEnd = $weekStart.AddDays(7)
@@ -83,6 +146,10 @@ $current = $parsed | Where-Object { $_.date -ge $weekStart -and $_.date -lt $wee
 $previous = $parsed | Where-Object { $_.date -ge $prevWeekStart -and $_.date -lt $prevWeekEnd }
 
 if (-not $current -or $current.Count -eq 0) {
+  if ($AllowNoCurrentWeek) {
+    Write-NoDataReport -WeekStart $weekStart -Reason 'No analytics rows found in requested week.'
+    return
+  }
   throw ("No analytics rows found for week {0} to {1}." -f $weekStart.ToString('yyyy-MM-dd'), $weekEnd.AddDays(-1).ToString('yyyy-MM-dd'))
 }
 
@@ -137,7 +204,6 @@ function Aggregate-Total {
 }
 
 $currByPlatform = Aggregate-ByPlatform -Rows $current
-$prevByPlatform = if ($previous.Count -gt 0) { Aggregate-ByPlatform -Rows $previous } else { @() }
 $currTotal = Aggregate-Total -Rows $current
 $prevTotal = if ($previous.Count -gt 0) { Aggregate-Total -Rows $previous } else { $null }
 
@@ -182,9 +248,8 @@ $reportLines += '- This report uses analytics-level data only (no hook text meta
 $reportLines += '- Add per-post hook tags later if you want hook-level winner detection.'
 
 if ($WriteReport) {
-  $reportDir = Join-Path $Root 'output/reports'
-  New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
-  $reportPath = Join-Path $reportDir ("weekly-summary-{0}.md" -f $weekStart.ToString('yyyy-MM-dd'))
+  New-Item -ItemType Directory -Path $ResolvedReportDir -Force | Out-Null
+  $reportPath = Join-Path $ResolvedReportDir ("weekly-summary-{0}.md" -f $weekStart.ToString('yyyy-MM-dd'))
   $reportLines -join "`r`n" | Set-Content -Path $reportPath -Encoding UTF8
   Write-Output "Report written: $reportPath"
 }

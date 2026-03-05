@@ -1,0 +1,19 @@
+﻿name: Smoke Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run PowerShell smoke tests
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\scripts\test.ps1 -Root . -TestDate 2026-03-09

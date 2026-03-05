@@ -1,0 +1,35 @@
+﻿name: Weekly Summary
+
+on:
+  workflow_dispatch:
+    inputs:
+      week_start_date:
+        description: Optional week start date (yyyy-MM-dd)
+        required: false
+        type: string
+  schedule:
+    - cron: '10 14 * * 1'
+
+jobs:
+  weekly-summary:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate weekly summary report
+        shell: pwsh
+        run: |
+          $args = @('-ExecutionPolicy','Bypass','-File','.\scripts\weekly-summary.ps1','-Root','.')
+          if ('${{ github.event.inputs.week_start_date }}' -ne '') {
+            $args += @('-WeekStartDate','${{ github.event.inputs.week_start_date }}')
+          }
+          $args += @('-AllowEmptyAnalytics','-AllowNoCurrentWeek')
+          & powershell @args
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-summary-${{ github.run_number }}
+          path: output/reports/*.md
+          if-no-files-found: warn
