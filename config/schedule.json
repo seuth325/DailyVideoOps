@@ -1,0 +1,22 @@
+﻿{
+  "timezone": "America/New_York",
+  "workflow_mode": "hybrid_approval",
+  "style": "personal_brand_story",
+  "daily_volume": 1,
+  "adaptation_depth": "light",
+  "post_windows_et": {
+    "tiktok": "12:30",
+    "instagram": "13:00",
+    "facebook": "13:30",
+    "youtube_shorts": "14:00",
+    "whatsapp_status_broadcast": "18:00"
+  },
+  "channels": [
+    "tiktok",
+    "instagram",
+    "facebook",
+    "youtube_shorts",
+    "whatsapp"
+  ],
+  "naming_standard": "YYYY-MM-DD_topic_platform_v1"
+}
