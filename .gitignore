@@ -13,3 +13,9 @@ output/
 # Keep repository clean if Python tooling is ever used
 __pycache__/
 *.pyc
+
+# Web app dependencies
+app/node_modules/
+
+# Web app local secrets
+app/.env

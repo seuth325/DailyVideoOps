@@ -100,3 +100,26 @@ Manual run from GitHub UI:
 2. Select `Weekly Summary`.
 3. Click `Run workflow`.
 4. Optional: set `week_start_date` in `yyyy-MM-dd`.
+
+## Multi-user Web App (New)
+
+A real web app is available in `app/` with:
+- User account signup/login (session-based)
+- Per-user post creation
+- Platform selection (Facebook, Instagram, WhatsApp, YouTube, TikTok)
+- Scheduled posting queue (simulated publish)
+- Per-user publish logs
+
+Run locally:
+```powershell
+cd app
+npm.cmd install
+npm.cmd start
+```
+
+Open:
+- `http://localhost:3000`
+
+Notes:
+- This MVP simulates posting in-app logs; it does not call social media APIs yet.
+- Data is stored in `app/data/db.json`.

@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - DailyVideoOps</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <h1>DailyVideoOps</h1>
+      <div class="topbar-right">
+        <span class="user-pill"><%= user.name %> (<%= user.email %>)</span>
+        <form method="POST" action="/logout">
+          <button type="submit" class="btn btn-secondary">Logout</button>
+        </form>
+      </div>
+    </header>
+
+    <% if (flash) { %><div class="flash"><%= flash %></div><% } %>
+
+    <section class="grid two-up">
+      <article class="card">
+        <h2>Create Post</h2>
+        <form method="POST" action="/posts" class="form-grid">
+          <label>Title</label>
+          <input type="text" name="title" required />
+
+          <label>Caption</label>
+          <textarea name="caption" rows="4" required></textarea>
+
+          <label>Platforms</label>
+          <div class="chips">
+            <% for (const p of platforms) { %>
+              <label class="chip">
+                <input type="checkbox" name="platforms" value="<%= p %>" /> <%= p %>
+              </label>
+            <% } %>
+          </div>
+
+          <label>Schedule (optional)</label>
+          <input type="datetime-local" name="scheduledAt" value="<%= nowIsoLocal %>" />
+
+          <button type="submit" class="btn">Save Post</button>
+        </form>
+      </article>
+
+      <article class="card">
+        <h2>Recent Publish Logs</h2>
+        <% if (logs.length === 0) { %>
+          <p>No logs yet.</p>
+        <% } else { %>
+          <ul class="list">
+            <% for (const log of logs) { %>
+              <li>
+                <strong><%= log.platform %></strong> - <%= log.message %>
+                <div class="muted"><%= new Date(log.createdAt).toLocaleString() %> by <%= log.actor %></div>
+              </li>
+            <% } %>
+          </ul>
+        <% } %>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>Your Posts</h2>
+      <% if (posts.length === 0) { %>
+        <p>No posts yet.</p>
+      <% } else { %>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Platforms</th>
+              <th>Status</th>
+              <th>Scheduled</th>
+              <th>Posted</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% for (const post of posts) { %>
+              <tr>
+                <td><%= post.title %></td>
+                <td><%= (post.platforms || []).join(', ') %></td>
+                <td><span class="status status-<%= post.status %>"><%= post.status %></span></td>
+                <td><%= post.scheduledAt ? new Date(post.scheduledAt).toLocaleString() : '-' %></td>
+                <td><%= post.postedAt ? new Date(post.postedAt).toLocaleString() : '-' %></td>
+                <td>
+                  <div class="actions">
+                    <% if (post.status !== 'posted') { %>
+                      <form method="POST" action="/posts/<%= post.id %>/run">
+                        <button type="submit" class="btn btn-small">Run now</button>
+                      </form>
+                    <% } %>
+                    <form method="POST" action="/posts/<%= post.id %>/delete" onsubmit="return confirm('Delete this post?');">
+                      <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+  </div>
+</body>
+</html>
