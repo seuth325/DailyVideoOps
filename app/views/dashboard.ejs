@@ -64,12 +64,41 @@
     <section class="grid two-up">
       <article class="card">
         <h2>Create Post</h2>
+
+        <div class="ai-box">
+          <h3>AI Recommendation</h3>
+          <div class="form-grid compact">
+            <label>Topic</label>
+            <input id="ai-topic" type="text" placeholder="What is this post about?" />
+
+            <label>Audience</label>
+            <input id="ai-audience" type="text" placeholder="Who is this for?" />
+
+            <label>Goal</label>
+            <input id="ai-goal" type="text" placeholder="Engagement, leads, awareness..." />
+
+            <label>Tone</label>
+            <input id="ai-tone" type="text" placeholder="Friendly, bold, educational..." />
+
+            <label>Primary Platform</label>
+            <select id="ai-platform">
+              <option value="">Any</option>
+              <% for (const p of platforms) { %>
+                <option value="<%= p %>"><%= p %></option>
+              <% } %>
+            </select>
+
+            <button id="ai-generate-btn" type="button" class="btn btn-secondary">Recommend Title + Caption</button>
+            <div id="ai-status" class="muted"></div>
+          </div>
+        </div>
+
         <form method="POST" action="/posts" class="form-grid">
           <label>Title</label>
-          <input type="text" name="title" required />
+          <input id="post-title" type="text" name="title" required />
 
           <label>Caption</label>
-          <textarea name="caption" rows="4" required></textarea>
+          <textarea id="post-caption" name="caption" rows="4" required></textarea>
 
           <label>Platforms</label>
           <div class="chips">
@@ -147,5 +176,6 @@
       <% } %>
     </section>
   </div>
+  <script src="/dashboard-ai.js"></script>
 </body>
 </html>

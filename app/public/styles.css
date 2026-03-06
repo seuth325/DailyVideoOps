@@ -68,6 +68,19 @@ body {
   margin: 16px 0;
 }
 
+.ai-box {
+  border: 1px dashed #9cc9ba;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 14px;
+  background: #f4fbf7;
+}
+
+.ai-box h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
 .auth-card {
   max-width: 460px;
   margin: 24px auto;
@@ -92,12 +105,13 @@ body {
   gap: 8px;
 }
 
-.form-grid.compact input {
+.form-grid.compact input,
+.form-grid.compact select {
   padding: 8px;
 }
 
 label { font-weight: 600; }
-input, textarea {
+input, textarea, select {
   width: 100%;
   padding: 10px;
   border: 1px solid #c4d2cc;

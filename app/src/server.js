@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 
 const { prisma } = require('./lib/prisma');
 const { ALLOWED_PLATFORMS, runPost, startScheduler } = require('./lib/postingEngine');
+const { generateRecommendation } = require('./lib/aiSuggest');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,6 +14,7 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '..', 'views'));
 
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(
   session({
@@ -167,6 +169,28 @@ app.get('/dashboard', requireAuth, wrap(async (req, res) => {
     connections,
     nowIsoLocal: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
   });
+}));
+
+app.post('/api/ai/recommend', requireAuth, wrap(async (req, res) => {
+  const user = await currentUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { topic, audience, goal, tone, platform } = req.body || {};
+  if (!topic || !String(topic).trim()) {
+    return res.status(400).json({ error: 'Topic is required.' });
+  }
+
+  const recommendation = await generateRecommendation({
+    topic: String(topic).trim(),
+    audience: audience ? String(audience).trim() : '',
+    goal: goal ? String(goal).trim() : '',
+    tone: tone ? String(tone).trim() : '',
+    platform: platform ? String(platform).trim() : '',
+  });
+
+  return res.json(recommendation);
 }));
 
 app.post('/connections/:platform/connect', requireAuth, wrap(async (req, res) => {
@@ -383,6 +407,9 @@ app.post('/posts/:id/delete', requireAuth, wrap(async (req, res) => {
 app.use((err, req, res, next) => {
   // eslint-disable-next-line no-console
   console.error(err);
+  if (req.path.startsWith('/api/')) {
+    return res.status(500).json({ error: 'Server error. Please try again.' });
+  }
   setFlash(req, 'Server error. Please try again.');
   if (res.headersSent) return next(err);
   return res.redirect('/login');
