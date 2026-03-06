@@ -1,57 +1,68 @@
 ﻿const cron = require('node-cron');
-const { withDb } = require('./store');
+const { prisma } = require('./prisma');
 
 const ALLOWED_PLATFORMS = ['facebook', 'instagram', 'whatsapp', 'youtube', 'tiktok'];
 
-function runPost(postId, actor = 'system') {
-  return withDb((db) => {
-    const post = db.posts.find((p) => p.id === postId);
-    if (!post) {
-      return { ok: false, reason: 'Post not found' };
-    }
-
-    if (post.status === 'posted') {
-      return { ok: false, reason: 'Post already posted' };
-    }
-
-    post.status = 'posted';
-    post.postedAt = new Date().toISOString();
-
-    const targets = (post.platforms || []).filter((p) => ALLOWED_PLATFORMS.includes(p));
-    for (const platform of targets) {
-      db.postLogs.push({
-        id: `${post.id}_${platform}_${Date.now()}`,
-        postId: post.id,
-        userId: post.userId,
-        platform,
-        message: `Simulated publish for ${platform}`,
-        createdAt: new Date().toISOString(),
-        actor,
-      });
-    }
-
-    return { ok: true, post };
-  });
-}
-
-function processDuePosts() {
-  const duePostIds = withDb((db) => {
-    const now = Date.now();
-    return db.posts
-      .filter((p) => p.status === 'scheduled' && p.scheduledAt && new Date(p.scheduledAt).getTime() <= now)
-      .map((p) => p.id);
-  });
-
-  for (const postId of duePostIds) {
-    runPost(postId, 'scheduler');
+async function runPost(postId, actor = 'system') {
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) {
+    return { ok: false, reason: 'Post not found' };
   }
 
-  return duePostIds.length;
+  if (post.status === 'posted') {
+    return { ok: false, reason: 'Post already posted' };
+  }
+
+  const updated = await prisma.post.update({
+    where: { id: postId },
+    data: {
+      status: 'posted',
+      postedAt: new Date(),
+    },
+  });
+
+  const targets = (updated.platforms || []).filter((p) => ALLOWED_PLATFORMS.includes(p));
+  if (targets.length > 0) {
+    await prisma.postLog.createMany({
+      data: targets.map((platform) => ({
+        postId: updated.id,
+        userId: updated.userId,
+        platform,
+        message: `Simulated publish for ${platform}`,
+        actor,
+      })),
+    });
+  }
+
+  return { ok: true, post: updated };
+}
+
+async function processDuePosts() {
+  const duePosts = await prisma.post.findMany({
+    where: {
+      status: 'scheduled',
+      scheduledAt: {
+        lte: new Date(),
+      },
+    },
+    select: { id: true },
+  });
+
+  for (const post of duePosts) {
+    await runPost(post.id, 'scheduler');
+  }
+
+  return duePosts.length;
 }
 
 function startScheduler() {
-  cron.schedule('* * * * *', () => {
-    processDuePosts();
+  cron.schedule('* * * * *', async () => {
+    try {
+      await processDuePosts();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Scheduler error:', err.message);
+    }
   });
 }
 

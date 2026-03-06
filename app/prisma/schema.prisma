@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  posts        Post[]
+  postLogs     PostLog[]
+}
+
+model Post {
+  id          String    @id @default(uuid())
+  userId      String
+  title       String
+  caption     String
+  platforms   String[]
+  status      String    @default("draft")
+  scheduledAt DateTime?
+  postedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postLogs PostLog[]
+
+  @@index([userId, createdAt])
+  @@index([status, scheduledAt])
+}
+
+model PostLog {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  platform  String
+  message   String
+  actor     String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([postId])
+}

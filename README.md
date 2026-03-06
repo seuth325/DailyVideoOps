@@ -120,6 +120,5 @@ npm.cmd start
 Open:
 - `http://localhost:3000`
 
-Notes:
-- This MVP simulates posting in-app logs; it does not call social media APIs yet.
-- Data is stored in `app/data/db.json`.
+Notes:`r`n- This MVP simulates posting in-app logs; it does not call social media APIs yet.`r`n- App data now uses PostgreSQL via Prisma (`app/prisma/schema.prisma`).`r`n- Before first run: `npm.cmd run prisma:generate` and `npm.cmd run prisma:migrate -- --name init`.
+
