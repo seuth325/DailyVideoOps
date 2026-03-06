@@ -22,7 +22,7 @@
 
     <section class="card">
       <h2>Platform Authentication</h2>
-      <p class="muted">Connect each platform account before posting. Tokens are stored in your account profile.</p>
+      <p class="muted">Use direct platform credentials (token + external account id) or a webhook integration for real publishing.</p>
       <div class="grid two-up">
         <% for (const conn of connections) { %>
           <article class="auth-tile">
@@ -34,11 +34,20 @@
               <label>Account label</label>
               <input type="text" name="accountLabel" value="<%= conn.accountLabel || '' %>" placeholder="@yourhandle" />
 
-              <label>Access token</label>
-              <input type="password" name="accessToken" placeholder="Paste API access token" required />
+              <label>External account id</label>
+              <input type="text" name="externalAccountId" value="<%= conn.externalAccountId || '' %>" placeholder="Page ID / IG User ID / Phone ID" />
+
+              <label>Access token (optional if webhook used)</label>
+              <input type="password" name="accessToken" placeholder="Paste API access token" />
 
               <label>Refresh token (optional)</label>
               <input type="password" name="refreshToken" placeholder="Optional" />
+
+              <label>Webhook URL (optional)</label>
+              <input type="url" name="webhookUrl" value="<%= conn.webhookUrl || '' %>" placeholder="https://your-automation/webhook" />
+
+              <label>Config JSON (optional)</label>
+              <textarea name="configJson" rows="2" placeholder='{"to":"15551234567"}'><%= conn.configJson || '' %></textarea>
 
               <label>Scopes (optional)</label>
               <input type="text" name="scopes" value="<%= conn.scopes || '' %>" placeholder="publish,read" />
@@ -99,6 +108,9 @@
 
           <label>Caption</label>
           <textarea id="post-caption" name="caption" rows="4" required></textarea>
+
+          <label>Media URL (required for Instagram/video channels)</label>
+          <input type="url" name="mediaUrl" placeholder="https://.../video.mp4" />
 
           <label>Platforms</label>
           <div class="chips">

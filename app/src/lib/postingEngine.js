@@ -1,5 +1,6 @@
 ﻿const cron = require('node-cron');
 const { prisma } = require('./prisma');
+const { publishToPlatform } = require('./platformPublisher');
 
 const ALLOWED_PLATFORMS = ['facebook', 'instagram', 'whatsapp', 'youtube', 'tiktok'];
 
@@ -16,46 +17,81 @@ async function runPost(postId, actor = 'system') {
   const connections = await prisma.platformConnection.findMany({
     where: {
       userId: post.userId,
-      status: 'connected',
       platform: { in: post.platforms || [] },
     },
-    select: { platform: true },
+  });
+  const connectionMap = new Map(connections.map((c) => [c.platform, c]));
+
+  const results = [];
+  const missing = [];
+
+  for (const platform of post.platforms || []) {
+    if (!ALLOWED_PLATFORMS.includes(platform)) continue;
+    const connection = connectionMap.get(platform);
+
+    if (!connection || connection.status !== 'connected') {
+      missing.push(platform);
+      results.push({ platform, ok: false, error: 'Platform not connected' });
+      continue;
+    }
+
+    try {
+      const pub = await publishToPlatform({ platform, connection, post });
+      results.push({ platform, ok: true, externalId: pub.externalId || null });
+      await prisma.postLog.create({
+        data: {
+          postId: post.id,
+          userId: post.userId,
+          platform,
+          message: `Published successfully${pub.externalId ? ` (id: ${pub.externalId})` : ''}`,
+          actor,
+        },
+      });
+    } catch (err) {
+      results.push({ platform, ok: false, error: err.message });
+      await prisma.postLog.create({
+        data: {
+          postId: post.id,
+          userId: post.userId,
+          platform,
+          message: `Publish failed: ${err.message}`,
+          actor,
+        },
+      });
+    }
+  }
+
+  const hasFailures = results.some((r) => !r.ok);
+  const finalStatus = hasFailures ? 'failed' : 'posted';
+
+  const updated = await prisma.post.update({
+    where: { id: post.id },
+    data: {
+      status: finalStatus,
+      postedAt: finalStatus === 'posted' ? new Date() : post.postedAt,
+    },
   });
 
-  const connectedSet = new Set(connections.map((c) => c.platform));
-  const missingPlatforms = (post.platforms || []).filter((p) => !connectedSet.has(p));
-
-  if (missingPlatforms.length > 0) {
+  if (missing.length > 0) {
     return {
       ok: false,
-      reason: `Missing platform authentication: ${missingPlatforms.join(', ')}`,
-      missingPlatforms,
-      userId: post.userId,
+      reason: `Missing platform authentication: ${missing.join(', ')}`,
+      missingPlatforms: missing,
+      post: updated,
+      results,
     };
   }
 
-  const updated = await prisma.post.update({
-    where: { id: postId },
-    data: {
-      status: 'posted',
-      postedAt: new Date(),
-    },
-  });
-
-  const targets = (updated.platforms || []).filter((p) => ALLOWED_PLATFORMS.includes(p));
-  if (targets.length > 0) {
-    await prisma.postLog.createMany({
-      data: targets.map((platform) => ({
-        postId: updated.id,
-        userId: updated.userId,
-        platform,
-        message: `Simulated publish for ${platform} using authenticated connection`,
-        actor,
-      })),
-    });
+  if (hasFailures) {
+    return {
+      ok: false,
+      reason: 'One or more platform publishes failed.',
+      post: updated,
+      results,
+    };
   }
 
-  return { ok: true, post: updated };
+  return { ok: true, post: updated, results };
 }
 
 async function processDuePosts() {
@@ -66,27 +102,11 @@ async function processDuePosts() {
         lte: new Date(),
       },
     },
-    select: { id: true, userId: true },
+    select: { id: true },
   });
 
   for (const post of duePosts) {
-    const result = await runPost(post.id, 'scheduler');
-    if (!result.ok && Array.isArray(result.missingPlatforms) && result.missingPlatforms.length > 0) {
-      await prisma.post.update({
-        where: { id: post.id },
-        data: { status: 'failed' },
-      });
-
-      await prisma.postLog.createMany({
-        data: result.missingPlatforms.map((platform) => ({
-          postId: post.id,
-          userId: post.userId,
-          platform,
-          message: 'Scheduled post failed: platform not authenticated',
-          actor: 'scheduler',
-        })),
-      });
-    }
+    await runPost(post.id, 'scheduler');
   }
 
   return duePosts.length;

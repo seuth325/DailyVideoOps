@@ -23,6 +23,7 @@ model Post {
   userId      String
   title       String
   caption     String
+  mediaUrl    String?
   platforms   String[]
   status      String    @default("draft")
   scheduledAt DateTime?
@@ -53,18 +54,21 @@ model PostLog {
 }
 
 model PlatformConnection {
-  id           String    @id @default(uuid())
-  userId       String
-  platform     String
-  accountLabel String?
-  accessToken  String?
-  refreshToken String?
-  scopes       String?
-  expiresAt    DateTime?
-  status       String    @default("disconnected")
-  connectedAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  userId            String
+  platform          String
+  accountLabel      String?
+  externalAccountId String?
+  webhookUrl        String?
+  configJson        String?
+  accessToken       String?
+  refreshToken      String?
+  scopes            String?
+  expiresAt         DateTime?
+  status            String    @default("disconnected")
+  connectedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

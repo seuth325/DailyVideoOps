@@ -154,6 +154,9 @@ app.get('/dashboard', requireAuth, wrap(async (req, res) => {
       platform,
       status: 'disconnected',
       accountLabel: '',
+      externalAccountId: '',
+      webhookUrl: '',
+      configJson: '',
       scopes: '',
       expiresAt: null,
       connectedAt: null,
@@ -206,9 +209,13 @@ app.post('/connections/:platform/connect', requireAuth, wrap(async (req, res) =>
     return res.redirect('/dashboard');
   }
 
-  const { accountLabel, accessToken, refreshToken, scopes, expiresAt } = req.body;
-  if (!accessToken || !String(accessToken).trim()) {
-    setFlash(req, `Access token is required to connect ${platform}.`);
+  const {
+    accountLabel, accessToken, refreshToken, scopes, expiresAt,
+    externalAccountId, webhookUrl, configJson,
+  } = req.body;
+
+  if ((!accessToken || !String(accessToken).trim()) && (!webhookUrl || !String(webhookUrl).trim())) {
+    setFlash(req, `Provide either Access token or Webhook URL to connect ${platform}.`);
     return res.redirect('/dashboard');
   }
 
@@ -233,7 +240,10 @@ app.post('/connections/:platform/connect', requireAuth, wrap(async (req, res) =>
       userId: user.id,
       platform,
       accountLabel: accountLabel || null,
-      accessToken: accessToken.trim(),
+      externalAccountId: externalAccountId || null,
+      webhookUrl: webhookUrl || null,
+      configJson: configJson || null,
+      accessToken: accessToken ? accessToken.trim() : null,
       refreshToken: refreshToken ? refreshToken.trim() : null,
       scopes: scopes || null,
       expiresAt: expiresAtDate,
@@ -242,7 +252,10 @@ app.post('/connections/:platform/connect', requireAuth, wrap(async (req, res) =>
     },
     update: {
       accountLabel: accountLabel || null,
-      accessToken: accessToken.trim(),
+      externalAccountId: externalAccountId || null,
+      webhookUrl: webhookUrl || null,
+      configJson: configJson || null,
+      accessToken: accessToken ? accessToken.trim() : null,
       refreshToken: refreshToken ? refreshToken.trim() : null,
       scopes: scopes || null,
       expiresAt: expiresAtDate,
@@ -281,6 +294,9 @@ app.post('/connections/:platform/disconnect', requireAuth, wrap(async (req, res)
       status: 'disconnected',
       connectedAt: null,
       accountLabel: null,
+      externalAccountId: null,
+      webhookUrl: null,
+      configJson: null,
       accessToken: null,
       refreshToken: null,
       scopes: null,
@@ -290,6 +306,9 @@ app.post('/connections/:platform/disconnect', requireAuth, wrap(async (req, res)
       status: 'disconnected',
       connectedAt: null,
       accountLabel: null,
+      externalAccountId: null,
+      webhookUrl: null,
+      configJson: null,
       accessToken: null,
       refreshToken: null,
       scopes: null,
@@ -308,7 +327,7 @@ app.post('/posts', requireAuth, wrap(async (req, res) => {
     return res.redirect('/login');
   }
 
-  const { title, caption, scheduledAt } = req.body;
+  const { title, caption, mediaUrl, scheduledAt } = req.body;
   const selected = Array.isArray(req.body.platforms)
     ? req.body.platforms
     : req.body.platforms
@@ -344,6 +363,7 @@ app.post('/posts', requireAuth, wrap(async (req, res) => {
       userId: user.id,
       title,
       caption,
+      mediaUrl: mediaUrl || null,
       platforms: validPlatforms,
       status,
       scheduledAt: scheduledAtIso,
@@ -370,21 +390,9 @@ app.post('/posts/:id/run', requireAuth, wrap(async (req, res) => {
 
   const result = await runPost(postId, user.email);
   if (!result.ok) {
-    if (result.missingPlatforms && result.missingPlatforms.length > 0) {
-      await prisma.post.update({ where: { id: postId }, data: { status: 'failed' } });
-      await prisma.postLog.createMany({
-        data: result.missingPlatforms.map((platform) => ({
-          postId,
-          userId: user.id,
-          platform,
-          message: 'Manual run failed: platform not authenticated',
-          actor: user.email,
-        })),
-      });
-    }
-    setFlash(req, result.reason);
+    setFlash(result.reason || 'Publishing failed.');
   } else {
-    setFlash(req, 'Post ran successfully (simulated publishing).');
+    setFlash('Post published successfully.');
   }
 
   return res.redirect('/dashboard');
