@@ -20,6 +20,47 @@
 
     <% if (flash) { %><div class="flash"><%= flash %></div><% } %>
 
+    <section class="card">
+      <h2>Platform Authentication</h2>
+      <p class="muted">Connect each platform account before posting. Tokens are stored in your account profile.</p>
+      <div class="grid two-up">
+        <% for (const conn of connections) { %>
+          <article class="auth-tile">
+            <div class="auth-head">
+              <h3><%= conn.platform %></h3>
+              <span class="status status-<%= conn.status %>"><%= conn.status %></span>
+            </div>
+            <form method="POST" action="/connections/<%= conn.platform %>/connect" class="form-grid compact">
+              <label>Account label</label>
+              <input type="text" name="accountLabel" value="<%= conn.accountLabel || '' %>" placeholder="@yourhandle" />
+
+              <label>Access token</label>
+              <input type="password" name="accessToken" placeholder="Paste API access token" required />
+
+              <label>Refresh token (optional)</label>
+              <input type="password" name="refreshToken" placeholder="Optional" />
+
+              <label>Scopes (optional)</label>
+              <input type="text" name="scopes" value="<%= conn.scopes || '' %>" placeholder="publish,read" />
+
+              <label>Expiry (optional)</label>
+              <input type="datetime-local" name="expiresAt" value="<%= conn.expiresAt ? new Date(new Date(conn.expiresAt).getTime() - new Date(conn.expiresAt).getTimezoneOffset() * 60000).toISOString().slice(0,16) : '' %>" />
+
+              <div class="actions">
+                <button type="submit" class="btn btn-small">Save Connection</button>
+              </div>
+            </form>
+            <form method="POST" action="/connections/<%= conn.platform %>/disconnect">
+              <button type="submit" class="btn btn-small btn-danger">Disconnect</button>
+            </form>
+            <% if (conn.connectedAt) { %>
+              <div class="muted">Connected: <%= new Date(conn.connectedAt).toLocaleString() %></div>
+            <% } %>
+          </article>
+        <% } %>
+      </div>
+    </section>
+
     <section class="grid two-up">
       <article class="card">
         <h2>Create Post</h2>

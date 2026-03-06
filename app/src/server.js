@@ -130,15 +130,32 @@ app.get('/dashboard', requireAuth, wrap(async (req, res) => {
     return res.redirect('/login');
   }
 
-  const posts = await prisma.post.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: 'desc' },
-  });
+  const [posts, logs, savedConnections] = await Promise.all([
+    prisma.post.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.postLog.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    prisma.platformConnection.findMany({
+      where: { userId: user.id },
+      orderBy: { platform: 'asc' },
+    }),
+  ]);
 
-  const logs = await prisma.postLog.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
+  const connections = ALLOWED_PLATFORMS.map((platform) => {
+    const conn = savedConnections.find((c) => c.platform === platform);
+    return conn || {
+      platform,
+      status: 'disconnected',
+      accountLabel: '',
+      scopes: '',
+      expiresAt: null,
+      connectedAt: null,
+    };
   });
 
   res.render('dashboard', {
@@ -147,8 +164,117 @@ app.get('/dashboard', requireAuth, wrap(async (req, res) => {
     posts,
     logs,
     platforms: ALLOWED_PLATFORMS,
+    connections,
     nowIsoLocal: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
   });
+}));
+
+app.post('/connections/:platform/connect', requireAuth, wrap(async (req, res) => {
+  const user = await currentUser(req);
+  if (!user) {
+    req.session.userId = null;
+    return res.redirect('/login');
+  }
+
+  const platform = String(req.params.platform || '').toLowerCase();
+  if (!ALLOWED_PLATFORMS.includes(platform)) {
+    setFlash(req, 'Unsupported platform.');
+    return res.redirect('/dashboard');
+  }
+
+  const { accountLabel, accessToken, refreshToken, scopes, expiresAt } = req.body;
+  if (!accessToken || !String(accessToken).trim()) {
+    setFlash(req, `Access token is required to connect ${platform}.`);
+    return res.redirect('/dashboard');
+  }
+
+  let expiresAtDate = null;
+  if (expiresAt) {
+    const dt = new Date(expiresAt);
+    if (Number.isNaN(dt.getTime())) {
+      setFlash(req, 'Invalid expiry date/time.');
+      return res.redirect('/dashboard');
+    }
+    expiresAtDate = dt;
+  }
+
+  await prisma.platformConnection.upsert({
+    where: {
+      userId_platform: {
+        userId: user.id,
+        platform,
+      },
+    },
+    create: {
+      userId: user.id,
+      platform,
+      accountLabel: accountLabel || null,
+      accessToken: accessToken.trim(),
+      refreshToken: refreshToken ? refreshToken.trim() : null,
+      scopes: scopes || null,
+      expiresAt: expiresAtDate,
+      status: 'connected',
+      connectedAt: new Date(),
+    },
+    update: {
+      accountLabel: accountLabel || null,
+      accessToken: accessToken.trim(),
+      refreshToken: refreshToken ? refreshToken.trim() : null,
+      scopes: scopes || null,
+      expiresAt: expiresAtDate,
+      status: 'connected',
+      connectedAt: new Date(),
+    },
+  });
+
+  setFlash(req, `${platform} authentication saved.`);
+  return res.redirect('/dashboard');
+}));
+
+app.post('/connections/:platform/disconnect', requireAuth, wrap(async (req, res) => {
+  const user = await currentUser(req);
+  if (!user) {
+    req.session.userId = null;
+    return res.redirect('/login');
+  }
+
+  const platform = String(req.params.platform || '').toLowerCase();
+  if (!ALLOWED_PLATFORMS.includes(platform)) {
+    setFlash(req, 'Unsupported platform.');
+    return res.redirect('/dashboard');
+  }
+
+  await prisma.platformConnection.upsert({
+    where: {
+      userId_platform: {
+        userId: user.id,
+        platform,
+      },
+    },
+    create: {
+      userId: user.id,
+      platform,
+      status: 'disconnected',
+      connectedAt: null,
+      accountLabel: null,
+      accessToken: null,
+      refreshToken: null,
+      scopes: null,
+      expiresAt: null,
+    },
+    update: {
+      status: 'disconnected',
+      connectedAt: null,
+      accountLabel: null,
+      accessToken: null,
+      refreshToken: null,
+      scopes: null,
+      expiresAt: null,
+    },
+  });
+
+  setFlash(req, `${platform} disconnected.`);
+  return res.redirect('/dashboard');
 }));
 
 app.post('/posts', requireAuth, wrap(async (req, res) => {
@@ -220,6 +346,18 @@ app.post('/posts/:id/run', requireAuth, wrap(async (req, res) => {
 
   const result = await runPost(postId, user.email);
   if (!result.ok) {
+    if (result.missingPlatforms && result.missingPlatforms.length > 0) {
+      await prisma.post.update({ where: { id: postId }, data: { status: 'failed' } });
+      await prisma.postLog.createMany({
+        data: result.missingPlatforms.map((platform) => ({
+          postId,
+          userId: user.id,
+          platform,
+          message: 'Manual run failed: platform not authenticated',
+          actor: user.email,
+        })),
+      });
+    }
     setFlash(req, result.reason);
   } else {
     setFlash(req, 'Post ran successfully (simulated publishing).');

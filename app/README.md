@@ -6,6 +6,7 @@
 - Multi-platform targeting (Facebook, Instagram, WhatsApp, YouTube, TikTok)
 - Scheduled queue with simulated posting logs
 - PostgreSQL persistence via Prisma
+- Dashboard platform authentication (connect/disconnect per platform)
 
 ## Setup
 1. Copy `.env.example` to `.env`.
@@ -25,6 +26,12 @@ npm.cmd start
 ```
 
 Open `http://localhost:3000`.
+
+## Platform Authentication Flow
+1. Log in and open Dashboard.
+2. In `Platform Authentication`, add token details per platform and click `Save Connection`.
+3. Create posts selecting connected platforms.
+4. Posts fail with status `failed` if required platform authentication is missing.
 
 ## Important
 This MVP still simulates posting. Real social posting requires OAuth + official APIs per platform.

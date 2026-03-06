@@ -13,6 +13,27 @@ async function runPost(postId, actor = 'system') {
     return { ok: false, reason: 'Post already posted' };
   }
 
+  const connections = await prisma.platformConnection.findMany({
+    where: {
+      userId: post.userId,
+      status: 'connected',
+      platform: { in: post.platforms || [] },
+    },
+    select: { platform: true },
+  });
+
+  const connectedSet = new Set(connections.map((c) => c.platform));
+  const missingPlatforms = (post.platforms || []).filter((p) => !connectedSet.has(p));
+
+  if (missingPlatforms.length > 0) {
+    return {
+      ok: false,
+      reason: `Missing platform authentication: ${missingPlatforms.join(', ')}`,
+      missingPlatforms,
+      userId: post.userId,
+    };
+  }
+
   const updated = await prisma.post.update({
     where: { id: postId },
     data: {
@@ -28,7 +49,7 @@ async function runPost(postId, actor = 'system') {
         postId: updated.id,
         userId: updated.userId,
         platform,
-        message: `Simulated publish for ${platform}`,
+        message: `Simulated publish for ${platform} using authenticated connection`,
         actor,
       })),
     });
@@ -45,11 +66,27 @@ async function processDuePosts() {
         lte: new Date(),
       },
     },
-    select: { id: true },
+    select: { id: true, userId: true },
   });
 
   for (const post of duePosts) {
-    await runPost(post.id, 'scheduler');
+    const result = await runPost(post.id, 'scheduler');
+    if (!result.ok && Array.isArray(result.missingPlatforms) && result.missingPlatforms.length > 0) {
+      await prisma.post.update({
+        where: { id: post.id },
+        data: { status: 'failed' },
+      });
+
+      await prisma.postLog.createMany({
+        data: result.missingPlatforms.map((platform) => ({
+          postId: post.id,
+          userId: post.userId,
+          platform,
+          message: 'Scheduled post failed: platform not authenticated',
+          actor: 'scheduler',
+        })),
+      });
+    }
   }
 
   return duePosts.length;

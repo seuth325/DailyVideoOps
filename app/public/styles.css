@@ -73,9 +73,27 @@ body {
   margin: 24px auto;
 }
 
+.auth-tile {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fbfefd;
+}
+
+.auth-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 .form-grid {
   display: grid;
   gap: 8px;
+}
+
+.form-grid.compact input {
+  padding: 8px;
 }
 
 label { font-weight: 600; }
@@ -131,6 +149,9 @@ input, textarea {
 .status-draft { background: #edf2f7; }
 .status-scheduled { background: #dbeafe; }
 .status-posted { background: #dcfce7; }
+.status-failed { background: #fee2e2; }
+.status-connected { background: #dcfce7; }
+.status-disconnected { background: #f1f5f9; }
 
 .actions {
   display: flex;

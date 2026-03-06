@@ -8,13 +8,14 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
+  id           String               @id @default(uuid())
+  email        String               @unique
   name         String
   passwordHash String
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime             @default(now())
   posts        Post[]
   postLogs     PostLog[]
+  connections  PlatformConnection[]
 }
 
 model Post {
@@ -49,4 +50,24 @@ model PostLog {
 
   @@index([userId, createdAt])
   @@index([postId])
+}
+
+model PlatformConnection {
+  id           String    @id @default(uuid())
+  userId       String
+  platform     String
+  accountLabel String?
+  accessToken  String?
+  refreshToken String?
+  scopes       String?
+  expiresAt    DateTime?
+  status       String    @default("disconnected")
+  connectedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@index([userId, status])
 }
